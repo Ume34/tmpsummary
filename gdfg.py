@@ -1,7 +1,5 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from pathlib import Path
 
 # === CSVファイル ===
@@ -29,85 +27,83 @@ df[col_d2] = df[col_d2].astype(str).str.replace('%', '', regex=False)
 df[col_d1] = pd.to_numeric(df[col_d1], errors="coerce")
 df[col_d2] = pd.to_numeric(df[col_d2], errors="coerce")
 
+# === データ補間（大気温） ===
 df_raw = df.set_index("Timestamp_fixed")
-
-# === 大気温補間 ===
 df_interp = df_raw.copy()
 df_interp[col_air] = df_interp[col_air].interpolate(method='time', limit_direction='both')
 
-# === 差分計算 ===
+# === ギャップ計算 ===
 df_interp["Gap1_C1-Air"] = df_interp[col_c1] - df_interp[col_air]
 df_interp["Gap2_C2-Air"] = df_interp[col_c2] - df_interp[col_air]
 
-# === グラフ描画 ===
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1]})
+# === Excel出力 + グラフ埋め込み ===
+out_xlsx = "container_temp_chart.xlsx"
+with pd.ExcelWriter(out_xlsx, engine='xlsxwriter') as writer:
+    df_reset = df_interp.reset_index()
+    df_reset.to_excel(writer, sheet_name='Data', index=False)
+    workbook = writer.book
+    worksheet = writer.sheets['Data']
 
-# --- 上段：温度 ---
-ax1.plot(df_interp.index, df_interp[col_air],
-         label="Ambient (Interpolated)",
-         linestyle="--", color="gray", linewidth=1.2)
+    # 折れ線グラフ（温度）
+    chart = workbook.add_chart({'type': 'line'})
 
-ax1.plot(df_interp.index, df_interp[col_c1],
-         label="Container 1 (Measured)",
-         color="tab:red", linewidth=1.8)
+    # Ambient
+    chart.add_series({
+        'name':       'Ambient',
+        'categories': ['Data', 1, 0, len(df_reset), 0],
+        'values':     ['Data', 1, 3, len(df_reset), 3],
+        'line':       {'color': 'gray', 'dash_type': 'dash'}
+    })
 
-ax1.plot(df_interp.index, df_interp[col_c2],
-         label="Container 2 (Measured)",
-         color="tab:purple", linewidth=1.8, linestyle="-.")
+    # Container 1
+    chart.add_series({
+        'name':       'Container 1',
+        'categories': ['Data', 1, 0, len(df_reset), 0],
+        'values':     ['Data', 1, 1, len(df_reset), 1],
+        'line':       {'color': 'red', 'width': 2}
+    })
 
-ax1.set_ylabel("Temperature (°C)")
-ax1.set_title("Container vs Ambient Temperature (Weekly Date Labels)")
-ax1.legend(loc="upper left")
-ax1.grid(True)
+    # Container 2
+    chart.add_series({
+        'name':       'Container 2',
+        'categories': ['Data', 1, 0, len(df_reset), 0],
+        'values':     ['Data', 1, 2, len(df_reset), 2],
+        'line':       {'color': 'purple', 'width': 2, 'dash_type': 'dot'}
+    })
 
-# --- 下段：ギャップ ---
-bar_width = 0.02
-ax2.bar(df_interp.index,
-        df_interp["Gap1_C1-Air"],
-        width=bar_width,
-        label="Gap 1 (C1 - Air)",
-        color="tab:red",
-        alpha=0.7,
-        edgecolor="black",
-        linewidth=0.3)
+    chart.set_title({'name': 'Container vs Ambient Temperature'})
+    chart.set_x_axis({'name': 'Timestamp'})
+    chart.set_y_axis({'name': 'Temperature (°C)'})
+    chart.set_legend({'position': 'top'})
 
-ax2.bar(df_interp.index,
-        df_interp["Gap2_C2-Air"],
-        width=bar_width,
-        label="Gap 2 (C2 - Air)",
-        color="tab:blue",
-        alpha=0.7,
-        edgecolor="black",
-        linewidth=0.3)
+    # 棒グラフ（Gap）
+    chart2 = workbook.add_chart({'type': 'column'})
 
-ax2.set_ylabel("Δ Temp (°C)")
-ax2.set_title("Temperature Gap (Measured - Interpolated Ambient)")
-ax2.legend(loc="upper left")
-ax2.grid(True)
+    chart2.add_series({
+        'name':       'Gap 1',
+        'categories': ['Data', 1, 0, len(df_reset), 0],
+        'values':     ['Data', 1, 6, len(df_reset), 6],
+        'fill':       {'color': 'red'},
+        'border':     {'color': 'black'}
+    })
 
-# === 横軸設定 ===
-# 1週間ごとの日付ラベル
-ax2.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
-ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+    chart2.add_series({
+        'name':       'Gap 2',
+        'categories': ['Data', 1, 0, len(df_reset), 0],
+        'values':     ['Data', 1, 7, len(df_reset), 7],
+        'fill':       {'color': 'blue'},
+        'border':     {'color': 'black'}
+    })
 
-# 1日ごとの補助線
-ax2.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
-ax2.grid(True, which='minor', axis='x', linestyle=':', color='gray', alpha=0.5)
+    chart2.set_title({'name': 'Temperature Gap'})
+    chart2.set_x_axis({'name': 'Timestamp'})
+    chart2.set_y_axis({'name': 'Δ Temp (°C)'})
+    chart2.set_legend({'position': 'top'})
 
-# ラベルを小さく・縦書き
-plt.setp(ax2.get_xticklabels(), rotation=90, ha='center', fontsize=6)
+    # Excelシートにグラフを配置
+    worksheet.insert_chart('K2', chart, {'x_scale': 2.0, 'y_scale': 1.3})
+    worksheet.insert_chart('K25', chart2, {'x_scale': 2.0, 'y_scale': 1.3})
 
-# === レイアウトと保存 ===
-plt.tight_layout()
-out_fig = "container_temp_gap_color_improved.png"
-plt.savefig(out_fig, dpi=150)
-plt.show()
+print(f"✅ Excelファイルにグラフを埋め込みました: {out_xlsx}")
 
-print(f"✅ グラフ生成完了: {out_fig}")
-
-# === CSVに出力 ===
-out_csv = "temperature_gap_output.csv"
-df_export = df_interp.reset_index()
-df_export.to_csv(out_csv, index=False, encoding='utf-8-sig')  # Excel対応BOM付き
-print(f"✅ CSV出力完了: {out_csv}")
 
