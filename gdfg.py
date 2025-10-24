@@ -35,47 +35,79 @@ df_raw = df.set_index("Timestamp_fixed")
 df_interp = df_raw.copy()
 df_interp[col_air] = df_interp[col_air].interpolate(method='time', limit_direction='both')
 
-# === 差分の再計算（オプション） ===
+# === 差分計算 ===
 df_interp["Gap1_C1-Air"] = df_interp[col_c1] - df_interp[col_air]
 df_interp["Gap2_C2-Air"] = df_interp[col_c2] - df_interp[col_air]
 
 # === グラフ描画 ===
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1]})
 
-ax1.plot(df_interp.index, df_interp[col_air], label="Ambient (Interpolated)", linestyle="--", color="tab:blue")
-ax1.plot(df_interp.index, df_interp[col_c1], label="Container 1 (Measured)", color="tab:orange")
-ax1.plot(df_interp.index, df_interp[col_c2], label="Container 2 (Measured)", color="tab:green")
+# --- 上段：温度 ---
+ax1.plot(df_interp.index, df_interp[col_air],
+         label="Ambient (Interpolated)",
+         linestyle="--", color="gray", linewidth=1.2)
+
+ax1.plot(df_interp.index, df_interp[col_c1],
+         label="Container 1 (Measured)",
+         color="tab:red", linewidth=1.8)
+
+ax1.plot(df_interp.index, df_interp[col_c2],
+         label="Container 2 (Measured)",
+         color="tab:purple", linewidth=1.8, linestyle="-.")
+
 ax1.set_ylabel("Temperature (°C)")
 ax1.set_title("Container vs Ambient Temperature (Weekly Date Labels)")
-ax1.legend(loc="upper right")
+ax1.legend(loc="upper left")
 ax1.grid(True)
 
+# --- 下段：ギャップ ---
 bar_width = 0.02
-ax2.bar(df_interp.index, df_interp["Gap1_C1-Air"], width=bar_width, label="Gap 1", color="tab:red", alpha=0.6)
-ax2.bar(df_interp.index, df_interp["Gap2_C2-Air"], width=bar_width, label="Gap 2", color="tab:pink", alpha=0.6)
+ax2.bar(df_interp.index,
+        df_interp["Gap1_C1-Air"],
+        width=bar_width,
+        label="Gap 1 (C1 - Air)",
+        color="tab:red",
+        alpha=0.7,
+        edgecolor="black",
+        linewidth=0.3)
+
+ax2.bar(df_interp.index,
+        df_interp["Gap2_C2-Air"],
+        width=bar_width,
+        label="Gap 2 (C2 - Air)",
+        color="tab:blue",
+        alpha=0.7,
+        edgecolor="black",
+        linewidth=0.3)
+
 ax2.set_ylabel("Δ Temp (°C)")
 ax2.set_title("Temperature Gap (Measured - Interpolated Ambient)")
-ax2.legend(loc="upper right")
+ax2.legend(loc="upper left")
 ax2.grid(True)
 
 # === 横軸設定 ===
+# 1週間ごとの日付ラベル
 ax2.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+
+# 1日ごとの補助線
 ax2.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
 ax2.grid(True, which='minor', axis='x', linestyle=':', color='gray', alpha=0.5)
+
+# ラベルを小さく・縦書き
 plt.setp(ax2.get_xticklabels(), rotation=90, ha='center', fontsize=6)
 
+# === レイアウトと保存 ===
 plt.tight_layout()
-out_fig = "container_temp_gap_weekly_date_labels.png"
+out_fig = "container_temp_gap_color_improved.png"
 plt.savefig(out_fig, dpi=150)
 plt.show()
 
 print(f"✅ グラフ生成完了: {out_fig}")
 
-# === Excelに出力 ===
-out_excel = "temperature_gap_output.xlsx"
-df_export = df_interp.reset_index()  # Timestamp_fixed を列に戻す
-df_export.to_excel(out_excel, index=False)
-
-print(f"✅ Excel出力完了: {out_excel}")
+# === CSVに出力 ===
+out_csv = "temperature_gap_output.csv"
+df_export = df_interp.reset_index()
+df_export.to_csv(out_csv, index=False, encoding='utf-8-sig')  # Excel対応BOM付き
+print(f"✅ CSV出力完了: {out_csv}")
 
