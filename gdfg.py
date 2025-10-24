@@ -5,7 +5,7 @@ import matplotlib.dates as mdates
 from pathlib import Path
 
 # === CSVファイルのパス ===
-path = Path("adafg.csv")   # リポジトリ直下にある CSV ファイル
+path = Path("adafg.csv")   # リポジトリ直下にある CSV ファイルを想定
 
 # === CSVの読み込み ===
 df = pd.read_csv(path)
@@ -46,7 +46,7 @@ ax1.plot(df_interp.index, df_interp[col_air], label="Ambient (Interpolated)", li
 ax1.plot(df_interp.index, df_interp[col_c1], label="Container 1 (Measured)", color="tab:orange")
 ax1.plot(df_interp.index, df_interp[col_c2], label="Container 2 (Measured)", color="tab:green")
 ax1.set_ylabel("Temperature (°C)")
-ax1.set_title("Container vs Ambient Temperature (Daily gridlines, weekly date labels)")
+ax1.set_title("Container vs Ambient Temperature (Weekly labels, small font)")
 ax1.legend(loc="upper right")
 ax1.grid(True)
 
@@ -60,16 +60,23 @@ ax2.legend(loc="upper right")
 ax2.grid(True)
 
 # === 横軸設定 ===
+# 1日ごとの補助線
 ax2.xaxis.set_major_locator(mdates.DayLocator(interval=1))
-ax2.xaxis.set_major_formatter(mdates.DateFormatter(''))
+ax2.xaxis.set_major_formatter(mdates.DateFormatter(''))  # Majorは補助線のみ
+
+# 1週間ごとの日付ラベル（月日だけ表示）
 ax2.xaxis.set_minor_locator(mdates.WeekdayLocator(interval=1))
-ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%Y/%m/%d'))
-plt.setp(ax2.get_xticklabels(minor=True), rotation=90, ha='center', fontsize=7)
+ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%m/%d'))
+
+# ラベルを小さく・縦書き
+plt.setp(ax2.get_xticklabels(minor=True), rotation=90, ha='center', fontsize=5)
+
+# 1日ごとの補助線
 ax2.grid(True, which='major', axis='x', linestyle=':', color='gray', alpha=0.5)
 
 # === 保存 ===
 plt.tight_layout()
-out_path = "container_temp_gap_bar_interp_daily_grid_weekly_labels.png"
+out_path = "container_temp_gap_bar_interp_weekly_smallfont.png"
 plt.savefig(out_path, dpi=150)
 plt.show()
 
